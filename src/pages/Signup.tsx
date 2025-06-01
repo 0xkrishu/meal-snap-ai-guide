@@ -1,33 +1,40 @@
-
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp } = useAuth();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate signup - replace with actual Supabase auth
-    setTimeout(() => {
-      setIsLoading(false);
+    const { error } = await signUp(email, password, name);
+
+    if (error) {
+      toast({
+        title: "Signup failed",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    } else {
       toast({
         title: "Account created successfully!",
-        description: "Welcome to FoodLens AI. Let's start analyzing your meals!",
+        description: "Please check your email to confirm your account.",
       });
-      navigate("/dashboard");
-    }, 1000);
+    }
+    
+    setIsLoading(false);
   };
 
   return (

@@ -1,20 +1,20 @@
 
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
 
-  const handleLogout = () => {
-    // Add actual logout logic here with Supabase
+  const handleLogout = async () => {
+    await signOut();
     toast({
       title: "Logged out successfully",
       description: "See you next time!",
     });
-    navigate("/");
   };
 
   return (
@@ -45,6 +45,9 @@ const Navbar = () => {
             >
               History
             </Link>
+            {user && (
+              <span className="text-sm text-gray-600">{user.email}</span>
+            )}
             <Button 
               variant="outline" 
               size="sm" 
