@@ -7,14 +7,23 @@ export const uploadImageAndAnalyze = async (file: File) => {
     const base64 = await fileToBase64(file);
     const imageUrl = `data:${file.type};base64,${base64}`;
 
+    console.log('Starting image analysis...');
+
     // Call the edge function for analysis
     const { data, error } = await supabase.functions.invoke('analyze-food', {
       body: { imageUrl }
     });
 
     if (error) {
-      throw new Error(error.message);
+      console.error('Edge function error:', error);
+      throw new Error(error.message || 'Failed to analyze image');
     }
+
+    if (!data) {
+      throw new Error('No data received from analysis');
+    }
+
+    console.log('Analysis complete:', data);
 
     return {
       ...data,
@@ -22,7 +31,17 @@ export const uploadImageAndAnalyze = async (file: File) => {
     };
   } catch (error) {
     console.error('Error uploading and analyzing image:', error);
-    throw error;
+    
+    // Provide more specific error messages
+    if (error.message?.includes('429')) {
+      throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+    } else if (error.message?.includes('401')) {
+      throw new Error('Authentication failed. Please check your API key.');
+    } else if (error.message?.includes('400')) {
+      throw new Error('Invalid image format. Please try a different image.');
+    } else {
+      throw new Error(error.message || 'Failed to analyze image. Please try again.');
+    }
   }
 };
 

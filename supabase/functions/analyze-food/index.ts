@@ -23,18 +23,23 @@ serve(async (req) => {
 
     console.log('Analyzing food image with OpenAI...');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure:
+    // Retry logic for rate limiting
+    let retries = 3;
+    let response;
+    
+    while (retries > 0) {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure:
 {
   "foodName": "string",
   "isHealthy": boolean,
@@ -53,27 +58,43 @@ serve(async (req) => {
   "ingredients": ["string"],
   "allergens": ["string"]
 }`
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Analyze this food image and provide detailed nutritional information. Be as accurate as possible with the nutrition values based on typical serving sizes.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Analyze this food image and provide detailed nutritional information. Be as accurate as possible with the nutrition values based on typical serving sizes.'
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: imageUrl
+                  }
                 }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.3
-      }),
-    });
+              ]
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.3
+        }),
+      });
+
+      if (response.ok) {
+        break;
+      }
+
+      if (response.status === 429) {
+        retries--;
+        if (retries > 0) {
+          console.log(`Rate limited, retrying in ${4 - retries} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, (4 - retries) * 1000));
+          continue;
+        }
+      }
+
+      throw new Error(`OpenAI API error: ${response.status} - ${await response.text()}`);
+    }
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status}`);
@@ -84,8 +105,32 @@ serve(async (req) => {
     
     console.log('OpenAI response:', analysisText);
 
-    // Parse the JSON response
-    const analysis = JSON.parse(analysisText);
+    // Parse the JSON response with error handling
+    let analysis;
+    try {
+      analysis = JSON.parse(analysisText);
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response:', parseError);
+      // Fallback response if parsing fails
+      analysis = {
+        foodName: "Unknown Food",
+        isHealthy: true,
+        healthReason: "Unable to analyze at this time",
+        nutrition: {
+          calories: 0,
+          carbs: 0,
+          protein: 0,
+          fat: 0,
+          fiber: 0,
+          sugar: 0,
+          sodium: 0
+        },
+        healthTip: "Please try again with a clearer image",
+        portionSize: "1 serving",
+        ingredients: ["Unknown"],
+        allergens: []
+      };
+    }
 
     // Save to database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
