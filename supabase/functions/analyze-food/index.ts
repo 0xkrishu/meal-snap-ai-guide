@@ -1,0 +1,138 @@
+
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { imageUrl } = await req.json();
+    
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    console.log('Analyzing food image with OpenAI...');
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure:
+{
+  "foodName": "string",
+  "isHealthy": boolean,
+  "healthReason": "string",
+  "nutrition": {
+    "calories": number,
+    "carbs": number,
+    "protein": number,
+    "fat": number,
+    "fiber": number,
+    "sugar": number,
+    "sodium": number
+  },
+  "healthTip": "string",
+  "portionSize": "string",
+  "ingredients": ["string"],
+  "allergens": ["string"]
+}`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze this food image and provide detailed nutritional information. Be as accurate as possible with the nutrition values based on typical serving sizes.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const analysisText = data.choices[0].message.content;
+    
+    console.log('OpenAI response:', analysisText);
+
+    // Parse the JSON response
+    const analysis = JSON.parse(analysisText);
+
+    // Save to database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get user from JWT
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      
+      if (user) {
+        const { error } = await supabase
+          .from('food_analyses')
+          .insert({
+            user_id: user.id,
+            image_url: imageUrl,
+            food_name: analysis.foodName,
+            is_healthy: analysis.isHealthy,
+            health_reason: analysis.healthReason,
+            calories: analysis.nutrition.calories,
+            carbs: analysis.nutrition.carbs,
+            protein: analysis.nutrition.protein,
+            fat: analysis.nutrition.fat,
+            health_tip: analysis.healthTip
+          });
+
+        if (error) {
+          console.error('Error saving to database:', error);
+        }
+      }
+    }
+
+    return new Response(JSON.stringify(analysis), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in analyze-food function:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Failed to analyze food image', 
+        details: error.message 
+      }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
