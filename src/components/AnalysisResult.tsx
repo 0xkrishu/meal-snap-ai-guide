@@ -23,6 +23,7 @@ interface AnalysisResultProps {
   portionSize?: string;
   ingredients?: string[];
   allergens?: string[];
+  meme?: string;
 }
 
 const AnalysisResult = ({ 
@@ -34,7 +35,8 @@ const AnalysisResult = ({
   imageUrl,
   portionSize,
   ingredients,
-  allergens
+  allergens,
+  meme
 }: AnalysisResultProps) => {
   return (
     <div className="space-y-6 animate-fade-in">
@@ -86,6 +88,18 @@ const AnalysisResult = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Fun Meme Section */}
+      {meme && (
+        <Card className="border-purple-100 bg-purple-50">
+          <CardHeader>
+            <CardTitle className="text-lg text-purple-800">😂 Food Humor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-purple-700 text-center font-medium italic">{meme}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Nutrition Charts */}
       <NutritionChart nutrition={nutrition} />

@@ -39,7 +39,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure:
+              content: `You are a professional nutritionist and food analysis expert with a sense of humor. Analyze the food image and provide detailed nutritional information. Always include a funny food-related meme or joke in your response. Return ONLY a valid JSON object with this exact structure:
 {
   "foodName": "string",
   "isHealthy": boolean,
@@ -56,7 +56,8 @@ serve(async (req) => {
   "healthTip": "string",
   "portionSize": "string",
   "ingredients": ["string"],
-  "allergens": ["string"]
+  "allergens": ["string"],
+  "meme": "string - a funny food-related joke or meme text"
 }`
             },
             {
@@ -64,7 +65,7 @@ serve(async (req) => {
               content: [
                 {
                   type: 'text',
-                  text: 'Analyze this food image and provide detailed nutritional information. Be as accurate as possible with the nutrition values based on typical serving sizes.'
+                  text: 'Analyze this food image and provide detailed nutritional information. Be as accurate as possible with the nutrition values based on typical serving sizes. Also include a funny food-related meme or joke!'
                 },
                 {
                   type: 'image_url',
@@ -128,11 +129,12 @@ serve(async (req) => {
         healthTip: "Please try again with a clearer image",
         portionSize: "1 serving",
         ingredients: ["Unknown"],
-        allergens: []
+        allergens: [],
+        meme: "Why did the tomato turn red? Because it saw the salad dressing! 🍅😂"
       };
     }
 
-    // Save to database
+    // Save to database with enhanced data
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -161,6 +163,8 @@ serve(async (req) => {
 
         if (error) {
           console.error('Error saving to database:', error);
+        } else {
+          console.log('Analysis saved to database successfully');
         }
       }
     }
