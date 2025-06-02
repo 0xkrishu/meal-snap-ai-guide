@@ -112,37 +112,28 @@ serve(async (req) => {
     console.log('OpenAI extracted analysisText:', analysisText);
 
     // Parse the JSON response with error handling
-    let analysis;
-    try {
-      analysis = JSON.parse(analysisText);
-    } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', parseError);
-      // Try to extract JSON from the response (removing code fences)
-      const extracted = extractJSON(analysisText);
-      if (extracted) {
-        analysis = extracted;
-      } else {
-        // Fallback response if parsing fails
-        analysis = {
-          foodName: "Unknown Food",
-          isHealthy: true,
-          healthReason: "Unable to analyze at this time",
-          nutrition: {
-            calories: 0,
-            carbs: 0,
-            protein: 0,
-            fat: 0,
-            fiber: 0,
-            sugar: 0,
-            sodium: 0
-          },
-          healthTip: "Please try again with a clearer image",
-          portionSize: "1 serving",
-          ingredients: ["Unknown"],
-          allergens: [],
-          meme: "Why did the tomato turn red? Because it saw the salad dressing! 🍅😂"
-        };
-      }
+    let analysis = extractJSON(analysisText);
+    if (!analysis) {
+      // Fallback response if parsing fails
+      analysis = {
+        foodName: "Unknown Food",
+        isHealthy: true,
+        healthReason: "Unable to analyze at this time",
+        nutrition: {
+          calories: 0,
+          carbs: 0,
+          protein: 0,
+          fat: 0,
+          fiber: 0,
+          sugar: 0,
+          sodium: 0
+        },
+        healthTip: "Please try again with a clearer image",
+        portionSize: "1 serving",
+        ingredients: ["Unknown"],
+        allergens: [],
+        meme: "Why did the tomato turn red? Because it saw the salad dressing! 🍅😂"
+      };
     }
 
     // Save to database with enhanced data
