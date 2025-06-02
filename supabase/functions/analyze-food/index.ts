@@ -24,6 +24,8 @@ serve(async (req) => {
 
     // Helper to extract JSON from a string
     function extractJSON(text) {
+      // Remove markdown code fences if present
+      text = text.replace(/```json|```/gi, '');
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         try {
@@ -51,7 +53,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure and NO extra text, markdown, or explanation. If you cannot analyze, still return a valid JSON object with a reason.\n\nJSON structure:\n{\n  "foodName": "string",\n  "isHealthy": boolean,\n  "healthReason": "string",\n  "nutrition": {\n    "calories": number,\n    "carbs": number,\n    "protein": number,\n    "fat": number,\n    "fiber": number,\n    "sugar": number,\n    "sodium": number\n  },\n  "healthTip": "string",\n  "portionSize": "string",\n  "ingredients": ["string"],\n  "allergens": ["string"],\n  "meme": "string - a funny food-related joke or meme text"\n}`
+              content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY the JSON object, with NO markdown, code fences, or extra text. If you cannot analyze, still return a valid JSON object with a reason.\n\nJSON structure:\n{\n  "foodName": "string",\n  "isHealthy": boolean,\n  "healthReason": "string",\n  "nutrition": {\n    "calories": number,\n    "carbs": number,\n    "protein": number,\n    "fat": number,\n    "fiber": number,\n    "sugar": number,\n    "sodium": number\n  },\n  "healthTip": "string",\n  "portionSize": "string",\n  "ingredients": ["string"],\n  "allergens": ["string"],\n  "meme": "string - a funny food-related joke or meme text"\n}`
             },
             {
               role: 'user',
@@ -94,10 +96,19 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const analysisText = data.choices[0].message.content;
+    let analysisText = '';
+    try {
+      const data = await response.json();
+      analysisText = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content ? data.choices[0].message.content : '';
+      console.log('OpenAI response status:', response.status);
+      console.log('OpenAI response body:', JSON.stringify(data, null, 2));
+    } catch (jsonErr) {
+      const errorBody = await response.text();
+      console.error('Failed to parse OpenAI response as JSON. Raw body:', errorBody);
+      throw new Error('OpenAI API did not return valid JSON.');
+    }
     
-    console.log('OpenAI response:', analysisText);
+    console.log('OpenAI extracted analysisText:', analysisText);
 
     // Parse the JSON response with error handling
     let analysis;
