@@ -112,7 +112,7 @@ serve(async (req) => {
     console.log('OpenAI extracted analysisText:', analysisText);
 
     // Parse the JSON response with error handling
-    let analysis = extractJSON(analysisText);
+    let analysis = extractAndParse(analysisText);
     if (!analysis) {
       // Fallback response if parsing fails
       analysis = {
@@ -195,3 +195,22 @@ serve(async (req) => {
     });
   }
 });
+
+function extractAndParse(response) {
+  try {
+    // Remove everything before the first `{`
+    const jsonStart = response.indexOf('{');
+    const jsonString = response.slice(jsonStart).replace(/```/g, '').trim();
+
+    // Parse JSON
+    return JSON.parse(jsonString);
+  } catch (err) {
+    console.error("Error parsing OpenAI response:", err.message);
+    return null;
+  }
+}
+
+// Example usage:
+const raw = '```json { "foodName": "Samosas", "isHealthy": false, "healthReason": "High in calories" } ```';
+const parsed = extractAndParse(raw);
+console.log(parsed);
