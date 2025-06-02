@@ -22,6 +22,19 @@ serve(async (req) => {
 
     console.log('Analyzing food image with OpenAI...');
 
+    // Helper to extract JSON from a string
+    function extractJSON(text) {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    }
+
     // Retry logic for rate limiting
     let retries = 3;
     let response;
@@ -38,26 +51,7 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: `You are a professional nutritionist and food analysis expert with a sense of humor. Analyze the food image and provide detailed nutritional information. Always include a funny food-related meme or joke in your response. Return ONLY a valid JSON object with this exact structure:
-{
-  "foodName": "string",
-  "isHealthy": boolean,
-  "healthReason": "string",
-  "nutrition": {
-    "calories": number,
-    "carbs": number,
-    "protein": number,
-    "fat": number,
-    "fiber": number,
-    "sugar": number,
-    "sodium": number
-  },
-  "healthTip": "string",
-  "portionSize": "string",
-  "ingredients": ["string"],
-  "allergens": ["string"],
-  "meme": "string - a funny food-related joke or meme text"
-}`
+              content: `You are a professional nutritionist and food analysis expert. Analyze the food image and provide detailed nutritional information. Return ONLY a valid JSON object with this exact structure and NO extra text, markdown, or explanation. If you cannot analyze, still return a valid JSON object with a reason.\n\nJSON structure:\n{\n  "foodName": "string",\n  "isHealthy": boolean,\n  "healthReason": "string",\n  "nutrition": {\n    "calories": number,\n    "carbs": number,\n    "protein": number,\n    "fat": number,\n    "fiber": number,\n    "sugar": number,\n    "sodium": number\n  },\n  "healthTip": "string",\n  "portionSize": "string",\n  "ingredients": ["string"],\n  "allergens": ["string"],\n  "meme": "string - a funny food-related joke or meme text"\n}`
             },
             {
               role: 'user',
@@ -111,26 +105,32 @@ serve(async (req) => {
       analysis = JSON.parse(analysisText);
     } catch (parseError) {
       console.error('Failed to parse OpenAI response:', parseError);
-      // Fallback response if parsing fails
-      analysis = {
-        foodName: "Unknown Food",
-        isHealthy: true,
-        healthReason: "Unable to analyze at this time",
-        nutrition: {
-          calories: 0,
-          carbs: 0,
-          protein: 0,
-          fat: 0,
-          fiber: 0,
-          sugar: 0,
-          sodium: 0
-        },
-        healthTip: "Please try again with a clearer image",
-        portionSize: "1 serving",
-        ingredients: ["Unknown"],
-        allergens: [],
-        meme: "Why did the tomato turn red? Because it saw the salad dressing! 🍅😂"
-      };
+      // Try to extract JSON from the response
+      const extracted = extractJSON(analysisText);
+      if (extracted) {
+        analysis = extracted;
+      } else {
+        // Fallback response if parsing fails
+        analysis = {
+          foodName: "Unknown Food",
+          isHealthy: true,
+          healthReason: "Unable to analyze at this time",
+          nutrition: {
+            calories: 0,
+            carbs: 0,
+            protein: 0,
+            fat: 0,
+            fiber: 0,
+            sugar: 0,
+            sodium: 0
+          },
+          healthTip: "Please try again with a clearer image",
+          portionSize: "1 serving",
+          ingredients: ["Unknown"],
+          allergens: [],
+          meme: "Why did the tomato turn red? Because it saw the salad dressing! 🍅😂"
+        };
+      }
     }
 
     // Save to database with enhanced data
@@ -174,10 +174,18 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in analyze-food function:', error);
+    // Try to include OpenAI or parsing error details if available
+    let errorMessage = error && error.message ? error.message : String(error);
+    if (error && error.response) {
+      try {
+        const errorData = await error.response.json();
+        errorMessage += ` | OpenAI: ${JSON.stringify(errorData)}`;
+      } catch {}
+    }
     return new Response(
       JSON.stringify({ 
         error: 'Failed to analyze food image', 
-        details: error.message 
+        details: errorMessage 
       }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
