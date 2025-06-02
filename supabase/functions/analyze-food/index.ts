@@ -22,10 +22,11 @@ serve(async (req) => {
 
     console.log('Analyzing food image with OpenAI...');
 
-    // Helper to extract JSON from a string
+    // Helper to extract JSON from a string, robust to markdown code fences
     function extractJSON(text) {
-      // Remove markdown code fences if present
+      // Remove all markdown code fences (```json, ```, etc.)
       text = text.replace(/```json|```/gi, '');
+      // Now extract the JSON object
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         try {
@@ -116,7 +117,7 @@ serve(async (req) => {
       analysis = JSON.parse(analysisText);
     } catch (parseError) {
       console.error('Failed to parse OpenAI response:', parseError);
-      // Try to extract JSON from the response
+      // Try to extract JSON from the response (removing code fences)
       const extracted = extractJSON(analysisText);
       if (extracted) {
         analysis = extracted;
